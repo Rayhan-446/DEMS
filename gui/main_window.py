@@ -450,86 +450,187 @@ class MainWindow:
         
         self.clear_content()
         
-        # Title and Add button
+        # Header with title and Add button
         header_frame = ctk.CTkFrame(self.content_frame)
         header_frame.pack(pady=(20, 10), padx=20, fill="x")
         
         ctk.CTkLabel(
             header_frame,
-            text="🏢 Department Management",
-            font=ctk.CTkFont(size=20, weight="bold")
-        ).pack(side="left", pady=15)
+            text="🏢 Manage Departments",
+            font=ctk.CTkFont(size=24, weight="bold")
+        ).pack(side="left", pady=15, padx=15)
         
         add_btn = ctk.CTkButton(
             header_frame,
-            text="➕ Add Department",
+            text="➕ Add New Department",
             command=self.show_add_department_dialog,
-            height=35,
-            font=ctk.CTkFont(size=12)
+            height=40,
+            width=180,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="green",
+            hover_color="darkgreen"
         )
         add_btn.pack(side="right", pady=15, padx=15)
         
-        # Department list
+        # Search frame
+        search_frame = ctk.CTkFrame(self.content_frame)
+        search_frame.pack(pady=(0, 10), padx=20, fill="x")
+        
+        ctk.CTkLabel(
+            search_frame,
+            text="🔍 Search by Department:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(side="left", padx=(15, 10), pady=10)
+        
+        self.dept_search_entry = ctk.CTkEntry(
+            search_frame,
+            placeholder_text="Enter department name...",
+            height=35,
+            width=300
+        )
+        self.dept_search_entry.pack(side="left", padx=(0, 10), pady=10)
+        self.dept_search_entry.bind('<KeyRelease>', lambda e: self.filter_departments())
+        
+        ctk.CTkButton(
+            search_frame,
+            text="🔄 Refresh",
+            command=self.refresh_departments,
+            height=35,
+            width=100
+        ).pack(side="left", padx=5, pady=10)
+        
+        # Department table frame
         list_frame = ctk.CTkFrame(self.content_frame)
         list_frame.pack(pady=10, padx=20, fill="both", expand=True)
         
-        # Create scrollable frame for departments
-        scrollable_frame = ctk.CTkScrollableFrame(list_frame)
-        scrollable_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        # Create treeview for departments
+        tree_frame = tk.Frame(list_frame, bg="#212121")
+        tree_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        columns = ("S No", "Department", "Action")
+        self.department_tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=15)
+        
+        # Configure columns
+        self.department_tree.heading("S No", text="S No")
+        self.department_tree.heading("Department", text="Department")
+        self.department_tree.heading("Action", text="Action")
+        
+        # Column widths
+        self.department_tree.column("S No", width=80, anchor="center")
+        self.department_tree.column("Department", width=400, anchor="w")
+        self.department_tree.column("Action", width=200, anchor="center")
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.department_tree.yview)
+        self.department_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.department_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Load departments
-        departments = self.db_service.get_all_departments()
+        self.refresh_departments()
         
-        for dept in departments:
-            dept_card = ctk.CTkFrame(scrollable_frame)
-            dept_card.pack(fill="x", pady=8, padx=5)
-            
-            # Department info
-            info_frame = ctk.CTkFrame(dept_card)
-            info_frame.pack(side="left", fill="both", expand=True, padx=15, pady=15)
-            
-            ctk.CTkLabel(
-                info_frame,
-                text=f"🏢 {dept['name']}",
-                font=ctk.CTkFont(size=16, weight="bold")
-            ).pack(anchor="w")
-            
-            ctk.CTkLabel(
-                info_frame,
-                text=f"ID: {dept['dept_id']} | Manager: {dept.get('manager', 'Not assigned')}",
-                font=ctk.CTkFont(size=12),
-                text_color="gray"
-            ).pack(anchor="w")
-            
-            ctk.CTkLabel(
-                info_frame,
-                text=dept['description'],
-                font=ctk.CTkFont(size=11),
-                text_color="lightgray"
-            ).pack(anchor="w", pady=(5, 0))
-            
-            # Replication status
-            status_frame = ctk.CTkFrame(dept_card)
-            status_frame.pack(side="right", padx=15, pady=15)
-            
-            ctk.CTkLabel(
-                status_frame,
-                text="🔄 Replicated",
-                font=ctk.CTkFont(size=10),
-                text_color="green"
-            ).pack(pady=5)
-            
-            ctk.CTkLabel(
-                status_frame,
-                text="All 3 DBs",
-                font=ctk.CTkFont(size=9),
-                text_color="gray"
-            ).pack()
+        # Action buttons frame
+        btn_frame = ctk.CTkFrame(self.content_frame)
+        btn_frame.pack(pady=10, padx=20, fill="x")
+        
+        ctk.CTkButton(
+            btn_frame,
+            text="✏️ Edit Selected",
+            command=self.edit_department,
+            height=35,
+            width=120
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            btn_frame,
+            text="🗑️ Delete Selected",
+            command=self.delete_department,
+            height=35,
+            width=120,
+            fg_color="#EE3B3B",
+            hover_color="darkred"
+        ).pack(side="left", padx=5)
     
     def show_add_department_dialog(self):
         dialog = DepartmentDialog(self.root, self.db_service)
         self.root.wait_window(dialog.dialog)
-        self.show_departments()  # Refresh
+        self.refresh_departments()
+    
+    def refresh_departments(self):
+        """Refresh the department list"""
+        # Clear existing items
+        for item in self.department_tree.get_children():
+            self.department_tree.delete(item)
+        
+        # Load all departments
+        departments = self.db_service.get_all_departments()
+        
+        serial_number = 1
+        for dept in departments:
+            self.department_tree.insert("", "end", values=(
+                serial_number,
+                dept['name'],
+                "Edit | Delete"
+            ), tags=(dept['dept_id'],))
+            serial_number += 1
+    
+    def filter_departments(self):
+        """Filter departments based on search query"""
+        search_query = self.dept_search_entry.get().strip().lower()
+        
+        # Clear existing items
+        for item in self.department_tree.get_children():
+            self.department_tree.delete(item)
+        
+        # Load all departments
+        departments = self.db_service.get_all_departments()
+        
+        # Filter departments
+        serial_number = 1
+        for dept in departments:
+            if search_query in dept['name'].lower():
+                self.department_tree.insert("", "end", values=(
+                    serial_number,
+                    dept['name'],
+                    "Edit | Delete"
+                ), tags=(dept['dept_id'],))
+                serial_number += 1
+    
+    def edit_department(self):
+        """Edit selected department"""
+        selection = self.department_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a department to edit")
+            return
+        
+        item = self.department_tree.item(selection[0])
+        dept_id = self.department_tree.item(selection[0], 'tags')[0]
+        
+        # Get department data
+        department = self.db_service.get_department(dept_id)
+        if department:
+            dialog = DepartmentDialog(self.root, self.db_service, department)
+            self.root.wait_window(dialog.dialog)
+            self.refresh_departments()
+    
+    def delete_department(self):
+        """Delete selected department"""
+        selection = self.department_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a department to delete")
+            return
+        
+        item = self.department_tree.item(selection[0])
+        dept_name = item['values'][1]
+        dept_id = self.department_tree.item(selection[0], 'tags')[0]
+        
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete department '{dept_name}'?\n\nThis action cannot be undone."):
+            if self.db_service.delete_department(dept_id):
+                messagebox.showinfo("Success", "Department deleted successfully from all databases")
+                self.refresh_departments()
+            else:
+                messagebox.showerror("Error", "Failed to delete department")
     
     def show_leaves(self):
         self.clear_content()
@@ -1170,22 +1271,27 @@ class UserAccountDialog:
 
 
 class DepartmentDialog:
-    def __init__(self, parent, db_service):
+    def __init__(self, parent, db_service, department=None):
         self.db_service = db_service
+        self.department = department
+        self.is_edit = department is not None
         
         self.dialog = ctk.CTkToplevel(parent)
-        self.dialog.title("Add Department")
-        self.dialog.geometry("500x500")  # Increased size
+        self.dialog.title("Edit Department" if self.is_edit else "Add New Department")
+        self.dialog.geometry("550x550")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
         # Center dialog
         self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (500 // 2)
-        self.dialog.geometry(f"500x500+{x}+{y}")
+        x = (self.dialog.winfo_screenwidth() // 2) - (550 // 2)
+        y = (self.dialog.winfo_screenheight() // 2) - (550 // 2)
+        self.dialog.geometry(f"550x550+{x}+{y}")
         
         self.create_widgets()
+        
+        if self.is_edit:
+            self.populate_fields()
     
     def create_widgets(self):
         # Main scrollable frame
@@ -1193,66 +1299,111 @@ class DepartmentDialog:
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         # Title
+        title = "Edit Department" if self.is_edit else "Add New Department"
         ctk.CTkLabel(
             main_frame,
-            text="Add New Department",
-            font=ctk.CTkFont(size=18, weight="bold")
+            text=f"🏢 {title}",
+            font=ctk.CTkFont(size=20, weight="bold")
         ).pack(pady=(10, 20))
         
         # Form fields
         # Department ID
-        ctk.CTkLabel(main_frame, text="Department ID", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=20)
-        self.dept_id_entry = ctk.CTkEntry(main_frame, height=35)
-        self.dept_id_entry.pack(fill="x", padx=20, pady=(5, 10))
+        ctk.CTkLabel(main_frame, text="Department ID", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=20)
+        self.dept_id_entry = ctk.CTkEntry(main_frame, height=35, placeholder_text="e.g., DEPT001")
+        self.dept_id_entry.pack(fill="x", padx=20, pady=(5, 15))
+        if self.is_edit:
+            self.dept_id_entry.configure(state="disabled")
         
         # Name
-        ctk.CTkLabel(main_frame, text="Department Name", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=20)
-        self.name_entry = ctk.CTkEntry(main_frame, height=35)
-        self.name_entry.pack(fill="x", padx=20, pady=(5, 10))
+        ctk.CTkLabel(main_frame, text="Department Name", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=20)
+        self.name_entry = ctk.CTkEntry(main_frame, height=35, placeholder_text="e.g., Human Resources")
+        self.name_entry.pack(fill="x", padx=20, pady=(5, 15))
+        
+        # Manager (optional)
+        ctk.CTkLabel(main_frame, text="Manager (Optional)", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=20)
+        self.manager_entry = ctk.CTkEntry(main_frame, height=35, placeholder_text="e.g., John Doe")
+        self.manager_entry.pack(fill="x", padx=20, pady=(5, 15))
         
         # Description
-        ctk.CTkLabel(main_frame, text="Description", font=ctk.CTkFont(size=12)).pack(anchor="w", padx=20)
-        self.description_entry = ctk.CTkTextbox(main_frame, height=80)
+        ctk.CTkLabel(main_frame, text="Description", font=ctk.CTkFont(size=12, weight="bold")).pack(anchor="w", padx=20)
+        self.description_entry = ctk.CTkTextbox(main_frame, height=100)
         self.description_entry.pack(fill="x", padx=20, pady=(5, 20))
         
         # Buttons
         btn_frame = ctk.CTkFrame(main_frame)
         btn_frame.pack(fill="x", padx=20, pady=10)
         
+        save_text = "💾 Update Department" if self.is_edit else "💾 Save & Replicate"
         save_btn = ctk.CTkButton(
             btn_frame,
-            text="Save & Replicate",
+            text=save_text,
             command=self.save_department,
-            height=40,
-            font=ctk.CTkFont(size=12, weight="bold")
+            height=45,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="green",
+            hover_color="darkgreen"
         )
         save_btn.pack(side="left", padx=(0, 10), fill="x", expand=True)
         
         cancel_btn = ctk.CTkButton(
             btn_frame,
-            text="Cancel",
+            text="❌ Cancel",
             command=self.dialog.destroy,
-            height=40,
-            font=ctk.CTkFont(size=12),
-            fg_color="gray",
-            hover_color="darkgray"
+            height=45,
+            font=ctk.CTkFont(size=14),
+            fg_color="#EE3B3B",
+            hover_color="darkred"
         )
         cancel_btn.pack(side="right", fill="x", expand=True)
+        
+        # Add keyboard shortcuts
+        self.dialog.bind('<Return>', lambda e: self.save_department())
+        self.dialog.bind('<Escape>', lambda e: self.dialog.destroy())
+    
+    def populate_fields(self):
+        """Populate fields when editing"""
+        if self.department:
+            self.dept_id_entry.insert(0, str(self.department['dept_id']))
+            self.name_entry.insert(0, self.department['name'])
+            if self.department.get('manager'):
+                self.manager_entry.insert(0, self.department['manager'])
+            self.description_entry.insert("1.0", self.department.get('description', ''))
     
     def save_department(self):
-        dept_id = self.dept_id_entry.get().strip()
+        # For edit mode, get dept_id from department data since the field is disabled
+        if self.is_edit:
+            dept_id = str(self.department['dept_id'])
+        else:
+            dept_id = self.dept_id_entry.get().strip()
+            
         name = self.name_entry.get().strip()
+        manager = self.manager_entry.get().strip() or None
         description = self.description_entry.get("1.0", "end-1c").strip()
         
         if not all([dept_id, name, description]):
-            messagebox.showerror("Error", "Please fill all fields")
+            messagebox.showerror("Error", "Please fill Department ID, Name, and Description fields")
             return
         
-        if self.db_service.create_department(dept_id, name, description):
-            messagebox.showinfo("Success", "Department created and replicated across all databases!")
-            self.dialog.destroy()
+        if self.is_edit:
+            # Update department
+            update_data = {
+                "name": name,
+                "manager": manager,
+                "description": description
+            }
+            
+            if self.db_service.update_department(dept_id, update_data):
+                messagebox.showinfo("Success", "Department updated successfully across all databases!")
+                self.dialog.destroy()
+            else:
+                messagebox.showerror("Error", "Failed to update department")
         else:
-            messagebox.showerror("Error", "Failed to create department")
+            # Create new department
+            if self.db_service.create_department(dept_id, name, description, manager):
+                messagebox.showinfo("Success", "Department created and replicated across all databases!")
+                self.dialog.destroy()
+            else:
+                messagebox.showerror("Error", "Failed to create department. Department ID might already exist.")
 
 
 class LeaveDialog:

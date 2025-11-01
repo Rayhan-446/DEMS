@@ -176,6 +176,38 @@ class DatabaseService:
             print(f"Error getting departments: {e}")
             return []
     
+    def get_department(self, dept_id):
+        """Get a specific department by ID"""
+        try:
+            db = self.db_manager.databases['db1']
+            return db[DatabaseConfig.DEPARTMENTS_COLLECTION].find_one({"dept_id": dept_id})
+        except Exception as e:
+            print(f"Error getting department: {e}")
+            return None
+    
+    def update_department(self, dept_id, update_data):
+        """Update department in all databases (replication)"""
+        try:
+            for db in self.db_manager.get_all_databases():
+                db[DatabaseConfig.DEPARTMENTS_COLLECTION].update_one(
+                    {"dept_id": dept_id},
+                    {"$set": update_data}
+                )
+            return True
+        except Exception as e:
+            print(f"Error updating department: {e}")
+            return False
+    
+    def delete_department(self, dept_id):
+        """Delete department from all databases (replication)"""
+        try:
+            for db in self.db_manager.get_all_databases():
+                db[DatabaseConfig.DEPARTMENTS_COLLECTION].delete_one({"dept_id": dept_id})
+            return True
+        except Exception as e:
+            print(f"Error deleting department: {e}")
+            return False
+    
     # Leave Management (Derived Horizontal Fragmentation)
     def apply_leave(self, emp_id, start_date, end_date, leave_type, reason):
         """Apply leave in same database as employee (derived fragmentation)"""
