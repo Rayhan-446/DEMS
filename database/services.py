@@ -61,6 +61,23 @@ class DatabaseService:
             print(f"Error checking username: {e}")
             return False
     
+    def change_user_password(self, username, new_password):
+        """Change user password in all databases (since users are replicated)"""
+        try:
+            # Hash the new password
+            hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            # Update password in all databases
+            for db in self.db_manager.get_all_databases():
+                db[DatabaseConfig.USERS_COLLECTION].update_one(
+                    {"username": username},
+                    {"$set": {"password": hashed_password}}
+                )
+            return True
+        except Exception as e:
+            print(f"Error changing password: {e}")
+            return False
+    
     # Employee Management (Range-based Horizontal Fragmentation)
     def create_employee(self, emp_id, name, email, phone, date_of_birth, department, position, salary):
         """Create employee in appropriate database based on ID range"""

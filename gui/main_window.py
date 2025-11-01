@@ -1898,55 +1898,159 @@ class MainWindow:
         # Title
         ctk.CTkLabel(
             self.content_frame,
-            text="⚙️ System Settings",
-            font=ctk.CTkFont(size=24, weight="bold")
-        ).pack(pady=(20, 30))
+            text="⚙️ Settings",
+            font=ctk.CTkFont(size=28, weight="bold")
+        ).pack(pady=(30, 20))
         
-        # Settings form
-        settings_frame = ctk.CTkFrame(self.content_frame)
-        settings_frame.pack(pady=20, padx=20, fill="x")
+        # Change Password Section
+        password_frame = ctk.CTkFrame(self.content_frame)
+        password_frame.pack(pady=20, padx=40, fill="both", expand=True)
+        
+        # Section title
+        ctk.CTkLabel(
+            password_frame,
+            text="� Change Password",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(pady=(30, 20))
+        
+        # Form container
+        form_container = ctk.CTkFrame(password_frame)
+        form_container.pack(pady=20, padx=60, fill="x")
+        
+        # Old Password
+        old_pass_frame = ctk.CTkFrame(form_container, fg_color="transparent")
+        old_pass_frame.pack(fill="x", pady=15)
         
         ctk.CTkLabel(
-            settings_frame,
-            text="👤 User Profile",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).pack(pady=(20, 15))
+            old_pass_frame,
+            text="Old Password:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=150,
+            anchor="w"
+        ).pack(side="left", padx=(0, 20))
         
-        # Current user info
-        info_text = f"""Current Username: {self.user['username']}
-Role: {self.user['role'].title()}
-Employee ID: {self.user.get('emp_id', 'N/A')}
-Account Type: {'Administrator' if self.user['role'] == 'admin' else 'Employee'}"""
+        self.old_password_entry = ctk.CTkEntry(
+            old_pass_frame,
+            placeholder_text="Enter your current password",
+            show="•",
+            height=40,
+            font=ctk.CTkFont(size=12)
+        )
+        self.old_password_entry.pack(side="left", fill="x", expand=True)
+        
+        # New Password
+        new_pass_frame = ctk.CTkFrame(form_container, fg_color="transparent")
+        new_pass_frame.pack(fill="x", pady=15)
         
         ctk.CTkLabel(
-            settings_frame,
+            new_pass_frame,
+            text="New Password:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=150,
+            anchor="w"
+        ).pack(side="left", padx=(0, 20))
+        
+        self.new_password_entry = ctk.CTkEntry(
+            new_pass_frame,
+            placeholder_text="Enter new password",
+            show="•",
+            height=40,
+            font=ctk.CTkFont(size=12)
+        )
+        self.new_password_entry.pack(side="left", fill="x", expand=True)
+        
+        # Confirm Password
+        confirm_pass_frame = ctk.CTkFrame(form_container, fg_color="transparent")
+        confirm_pass_frame.pack(fill="x", pady=15)
+        
+        ctk.CTkLabel(
+            confirm_pass_frame,
+            text="Confirm Password:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            width=150,
+            anchor="w"
+        ).pack(side="left", padx=(0, 20))
+        
+        self.confirm_password_entry = ctk.CTkEntry(
+            confirm_pass_frame,
+            placeholder_text="Re-enter new password",
+            show="•",
+            height=40,
+            font=ctk.CTkFont(size=12)
+        )
+        self.confirm_password_entry.pack(side="left", fill="x", expand=True)
+        
+        # Change Password Button
+        button_frame = ctk.CTkFrame(form_container, fg_color="transparent")
+        button_frame.pack(fill="x", pady=(30, 20))
+        
+        ctk.CTkButton(
+            button_frame,
+            text="🔐 Change Password",
+            command=self.change_password,
+            height=50,
+            font=ctk.CTkFont(size=16, weight="bold"),
+            fg_color="green",
+            hover_color="darkgreen"
+        ).pack(fill="x")
+        
+        # User info section at bottom
+        info_frame = ctk.CTkFrame(password_frame, fg_color="#979191")
+        info_frame.pack(pady=(20, 30), padx=60, fill="x")
+        
+        ctk.CTkLabel(
+            info_frame,
+            text="� Account Information",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=(15, 10))
+        
+        info_text = f"Username: {self.user['username']}  |  Role: {self.user['role'].title()}  |  Employee ID: {self.user.get('emp_id', 'N/A')}"
+        
+        ctk.CTkLabel(
+            info_frame,
             text=info_text,
-            font=ctk.CTkFont(size=12),
-            justify="left"
-        ).pack(pady=20)
-        
-        # System info
-        system_frame = ctk.CTkFrame(self.content_frame)
-        system_frame.pack(pady=20, padx=20, fill="both", expand=True)
-        
-        ctk.CTkLabel(
-            system_frame,
-            text="🖥️ System Information",
-            font=ctk.CTkFont(size=18, weight="bold")
-        ).pack(pady=(20, 15))
-        
-        system_info = """Database: MongoDB Atlas
-Security: bcrypt password encryption
-Access Control: Role-based (Admin/Employee)
-Version: 1.0.0"""
-        
-        ctk.CTkLabel(
-            system_frame,
-            text=system_info,
             font=ctk.CTkFont(size=11),
-            justify="left",
             text_color="lightgray"
-        ).pack(pady=20, padx=20)
+        ).pack(pady=(0, 15))
+    
+    def change_password(self):
+        """Handle password change"""
+        old_password = self.old_password_entry.get().strip()
+        new_password = self.new_password_entry.get().strip()
+        confirm_password = self.confirm_password_entry.get().strip()
+        
+        # Validation
+        if not all([old_password, new_password, confirm_password]):
+            messagebox.showerror("Error", "All fields are required!")
+            return
+        
+        # Verify old password
+        user_data = self.db_service.authenticate_user(self.user['username'], old_password)
+        if not user_data:
+            messagebox.showerror("Error", "Old password is incorrect!")
+            return
+        
+        # Check if new passwords match
+        if new_password != confirm_password:
+            messagebox.showerror("Error", "New password and confirm password do not match!")
+            return
+        
+        # Check password strength
+        if len(new_password) < 6:
+            messagebox.showerror("Error", "New password must be at least 6 characters long!")
+            return
+        
+        # Change password
+        if self.db_service.change_user_password(self.user['username'], new_password):
+            messagebox.showinfo("Success", "Password changed successfully!\n\nPlease login again with your new password.")
+            # Clear fields
+            self.old_password_entry.delete(0, 'end')
+            self.new_password_entry.delete(0, 'end')
+            self.confirm_password_entry.delete(0, 'end')
+            # Logout user
+            self.logout()
+        else:
+            messagebox.showerror("Error", "Failed to change password. Please try again.")
     
     def logout(self):
         if messagebox.askyesno("Logout", "Are you sure you want to logout?"):
