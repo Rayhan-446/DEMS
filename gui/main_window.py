@@ -143,6 +143,14 @@ class MainWindow:
     def show_dashboard(self):
         self.clear_content()
         
+        # Check if user is admin or employee
+        if self.user['role'] == 'admin':
+            self.show_admin_dashboard()
+        else:
+            self.show_employee_dashboard()
+    
+    def show_admin_dashboard(self):
+        """Admin Dashboard with system-wide statistics"""
         # Title
         title = ctk.CTkLabel(
             self.content_frame,
@@ -215,6 +223,144 @@ class MainWindow:
             row3_frame, 
             "❌", 
             str(stats['leave_rejected']), 
+            "Leave Rejected",
+            "#ef4444"  # Red
+        ).pack(side="left", padx=10, fill="both", expand=True)
+    
+    def show_employee_dashboard(self):
+        """Employee Dashboard with personal information and leave statistics"""
+        # Title
+        title = ctk.CTkLabel(
+            self.content_frame,
+            text="Employee Dashboard",
+            font=ctk.CTkFont(size=28, weight="bold")
+        )
+        title.pack(pady=(30, 20))
+        
+        # Get employee data
+        emp_id = self.user.get('emp_id')
+        if not emp_id:
+            ctk.CTkLabel(
+                self.content_frame,
+                text="⚠️ No employee ID associated with this account",
+                font=ctk.CTkFont(size=14),
+                text_color="orange"
+            ).pack(pady=20)
+            return
+        
+        employee = self.db_service.get_employee(emp_id)
+        if not employee:
+            ctk.CTkLabel(
+                self.content_frame,
+                text="⚠️ Employee information not found",
+                font=ctk.CTkFont(size=14),
+                text_color="orange"
+            ).pack(pady=20)
+            return
+        
+        # Employee Information Card
+        info_frame = ctk.CTkFrame(self.content_frame)
+        info_frame.pack(pady=10, padx=40, fill="x")
+        
+        ctk.CTkLabel(
+            info_frame,
+            text="👤 Personal Information",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(pady=(20, 15))
+        
+        # Employee details in a grid
+        details_container = ctk.CTkFrame(info_frame)
+        details_container.pack(pady=10, padx=30, fill="x")
+        
+        details = [
+            ("Employee ID:", str(employee['emp_id'])),
+            ("Name:", employee['name']),
+            ("Email:", employee['email']),
+            ("Phone:", employee.get('phone', 'N/A')),
+            ("Department:", employee['department']),
+            ("Position:", employee['position']),
+            ("Date of Birth:", employee.get('date_of_birth', 'N/A')),
+            ("Salary:", f"${employee.get('salary', 0):,.2f}")
+        ]
+        
+        for i, (label, value) in enumerate(details):
+            row = i // 2
+            col = i % 2
+            
+            detail_frame = ctk.CTkFrame(details_container, fg_color="transparent")
+            detail_frame.grid(row=row, column=col, sticky="ew", padx=10, pady=8)
+            
+            if col == 0:
+                details_container.grid_columnconfigure(0, weight=1)
+            else:
+                details_container.grid_columnconfigure(1, weight=1)
+            
+            ctk.CTkLabel(
+                detail_frame,
+                text=label,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                anchor="w"
+            ).pack(side="left", padx=(0, 10))
+            
+            ctk.CTkLabel(
+                detail_frame,
+                text=value,
+                font=ctk.CTkFont(size=12),
+                anchor="w"
+            ).pack(side="left")
+        
+        ctk.CTkLabel(info_frame, text="").pack(pady=10)  # Spacer
+        
+        # Leave Statistics Section
+        ctk.CTkLabel(
+            self.content_frame,
+            text="📊 Leave Statistics",
+            font=ctk.CTkFont(size=20, weight="bold")
+        ).pack(pady=(20, 10))
+        
+        # Get employee leave statistics
+        leaves = self.db_service.get_employee_leaves(emp_id)
+        leave_applied = len(leaves)
+        leave_approved = len([l for l in leaves if l['status'] == 'Approved'])
+        leave_pending = len([l for l in leaves if l['status'] == 'Pending'])
+        leave_rejected = len([l for l in leaves if l['status'] == 'Rejected'])
+        
+        # Leave statistics cards
+        leave_stats_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        leave_stats_frame.pack(pady=10, padx=40, fill="x")
+        
+        # Leave Applied card
+        self.create_stat_card(
+            leave_stats_frame,
+            "📝",
+            str(leave_applied),
+            "Leave Applied",
+            "#06b6d4"  # Cyan
+        ).pack(side="left", padx=10, fill="both", expand=True)
+        
+        # Leave Approved card
+        self.create_stat_card(
+            leave_stats_frame,
+            "✅",
+            str(leave_approved),
+            "Leave Approved",
+            "#10b981"  # Green
+        ).pack(side="left", padx=10, fill="both", expand=True)
+        
+        # Leave Pending card
+        self.create_stat_card(
+            leave_stats_frame,
+            "⏳",
+            str(leave_pending),
+            "Leave Pending",
+            "#f59e0b"  # Orange
+        ).pack(side="left", padx=10, fill="both", expand=True)
+        
+        # Leave Rejected card
+        self.create_stat_card(
+            leave_stats_frame,
+            "❌",
+            str(leave_rejected),
             "Leave Rejected",
             "#ef4444"  # Red
         ).pack(side="left", padx=10, fill="both", expand=True)
