@@ -641,102 +641,293 @@ class MainWindow:
     def show_leaves(self):
         self.clear_content()
         
-        # Title
+        # Initialize filter status if not exists
+        if not hasattr(self, 'leave_filter_status'):
+            self.leave_filter_status = "All"
+        
+        # Header with title
         header_frame = ctk.CTkFrame(self.content_frame)
         header_frame.pack(pady=(20, 10), padx=20, fill="x")
         
-        title_text = "🏖️ Leave Management"
         ctk.CTkLabel(
             header_frame,
-            text=title_text,
-            font=ctk.CTkFont(size=20, weight="bold")
-        ).pack(side="left", pady=15)
+            text="🏖️ Manage Leaves",
+            font=ctk.CTkFont(size=24, weight="bold")
+        ).pack(side="left", pady=15, padx=15)
         
-        if self.user['role'] == 'employee' and self.user.get('emp_id'):
-            add_btn = ctk.CTkButton(
-                header_frame,
-                text="📝 Apply for Leave",
-                command=self.show_apply_leave_dialog,
-                height=40,
-                width=180,
-                font=ctk.CTkFont(size=14, weight="bold"),
-                fg_color="green",
-                hover_color="darkgreen"
-            )
-            add_btn.pack(side="right", pady=15, padx=15)
+        # Search and Filter frame
+        search_filter_frame = ctk.CTkFrame(self.content_frame)
+        search_filter_frame.pack(pady=(0, 10), padx=20, fill="x")
         
-        # Leave list
+        # Search by Emp ID
+        ctk.CTkLabel(
+            search_filter_frame,
+            text="🔍 Search by Emp ID:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(side="left", padx=(15, 10), pady=10)
+        
+        self.leave_search_entry = ctk.CTkEntry(
+            search_filter_frame,
+            placeholder_text="Enter Employee ID...",
+            height=35,
+            width=200
+        )
+        self.leave_search_entry.pack(side="left", padx=(0, 10), pady=10)
+        self.leave_search_entry.bind('<KeyRelease>', lambda e: self.filter_leaves())
+        
+        # Filter buttons
+        ctk.CTkLabel(
+            search_filter_frame,
+            text="Filter:",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(side="left", padx=(20, 10), pady=10)
+        
+        # All button
+        self.all_btn = ctk.CTkButton(
+            search_filter_frame,
+            text="All",
+            command=lambda: self.set_leave_filter("All"),
+            height=35,
+            width=90,
+            fg_color="gray" if self.leave_filter_status != "All" else "#1f6aa5"
+        )
+        self.all_btn.pack(side="left", padx=2, pady=10)
+        
+        # Pending button
+        self.pending_btn = ctk.CTkButton(
+            search_filter_frame,
+            text="Pending",
+            command=lambda: self.set_leave_filter("Pending"),
+            height=35,
+            width=90,
+            fg_color="gray" if self.leave_filter_status != "Pending" else "#f59e0b"
+        )
+        self.pending_btn.pack(side="left", padx=2, pady=10)
+        
+        # Approved button
+        self.approved_btn = ctk.CTkButton(
+            search_filter_frame,
+            text="Approved",
+            command=lambda: self.set_leave_filter("Approved"),
+            height=35,
+            width=90,
+            fg_color="gray" if self.leave_filter_status != "Approved" else "#10b981"
+        )
+        self.approved_btn.pack(side="left", padx=2, pady=10)
+        
+        # Rejected button
+        self.rejected_btn = ctk.CTkButton(
+            search_filter_frame,
+            text="Rejected",
+            command=lambda: self.set_leave_filter("Rejected"),
+            height=35,
+            width=90,
+            fg_color="gray" if self.leave_filter_status != "Rejected" else "#ef4444"
+        )
+        self.rejected_btn.pack(side="left", padx=2, pady=10)
+        
+        # Refresh button
+        ctk.CTkButton(
+            search_filter_frame,
+            text="🔄 Refresh",
+            command=self.refresh_leaves,
+            height=35,
+            width=100
+        ).pack(side="right", padx=15, pady=10)
+        
+        # Leave table frame
         list_frame = ctk.CTkFrame(self.content_frame)
         list_frame.pack(pady=10, padx=20, fill="both", expand=True)
         
-        # Create scrollable frame for leaves
-        scrollable_frame = ctk.CTkScrollableFrame(list_frame)
-        scrollable_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        # Create treeview for leaves
+        tree_frame = tk.Frame(list_frame, bg="#212121")
+        tree_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        columns = ("S No", "Emp ID", "Name", "Leave Type", "Department", "Days", "Status")
+        self.leave_tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=15)
+        
+        # Configure columns
+        self.leave_tree.heading("S No", text="S No")
+        self.leave_tree.heading("Emp ID", text="Emp ID")
+        self.leave_tree.heading("Name", text="Name")
+        self.leave_tree.heading("Leave Type", text="Leave Type")
+        self.leave_tree.heading("Department", text="Department")
+        self.leave_tree.heading("Days", text="Days")
+        self.leave_tree.heading("Status", text="Status")
+        
+        # Column widths
+        self.leave_tree.column("S No", width=50, anchor="center")
+        self.leave_tree.column("Emp ID", width=80, anchor="center")
+        self.leave_tree.column("Name", width=150, anchor="w")
+        self.leave_tree.column("Leave Type", width=120, anchor="w")
+        self.leave_tree.column("Department", width=120, anchor="w")
+        self.leave_tree.column("Days", width=80, anchor="center")
+        self.leave_tree.column("Status", width=100, anchor="center")
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.leave_tree.yview)
+        self.leave_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.leave_tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Load leaves
+        self.refresh_leaves()
+        
+        # Action buttons frame (for admin only)
         if self.user['role'] == 'admin':
-            leaves = self.db_service.get_all_leaves()
-        else:
-            leaves = self.db_service.get_employee_leaves(self.user.get('emp_id', 0))
+            btn_frame = ctk.CTkFrame(self.content_frame)
+            btn_frame.pack(pady=10, padx=20, fill="x")
+            
+            ctk.CTkButton(
+                btn_frame,
+                text="✅ Approve Selected",
+                command=self.approve_selected_leave,
+                height=35,
+                width=150,
+                fg_color="green",
+                hover_color="darkgreen"
+            ).pack(side="left", padx=5)
+            
+            ctk.CTkButton(
+                btn_frame,
+                text="❌ Reject Selected",
+                command=self.reject_selected_leave,
+                height=35,
+                width=150,
+                fg_color="#EE3B3B",
+                hover_color="darkred"
+            ).pack(side="left", padx=5)
+    
+    def set_leave_filter(self, status):
+        """Set the leave filter status"""
+        self.leave_filter_status = status
+        self.refresh_leaves()
+    
+    def refresh_leaves(self):
+        """Refresh the leave list"""
+        # Clear existing items
+        for item in self.leave_tree.get_children():
+            self.leave_tree.delete(item)
         
-        if not leaves:
-            ctk.CTkLabel(
-                scrollable_frame,
-                text="No leave records found",
-                font=ctk.CTkFont(size=14),
-                text_color="gray"
-            ).pack(pady=50)
+        # Load all leaves
+        leaves = self.db_service.get_all_leaves()
         
+        # Apply status filter
+        if self.leave_filter_status != "All":
+            leaves = [l for l in leaves if l['status'] == self.leave_filter_status]
+        
+        # Apply search filter if any
+        search_query = self.leave_search_entry.get().strip()
+        if search_query:
+            leaves = [l for l in leaves if str(l['emp_id']) == search_query]
+        
+        serial_number = 1
         for leave in leaves:
-            leave_card = ctk.CTkFrame(scrollable_frame)
-            leave_card.pack(fill="x", pady=5, padx=5)
+            # Get employee details
+            emp_id = leave['emp_id']
+            employee = self.db_service.get_employee(emp_id)
+            emp_name = employee['name'] if employee else "Unknown"
+            department = employee['department'] if employee else "N/A"
             
-            # Leave info
-            info_frame = ctk.CTkFrame(leave_card)
-            info_frame.pack(side="left", fill="both", expand=True, padx=15, pady=15)
+            # Calculate days
+            days = self.calculate_leave_days(leave['start_date'], leave['end_date'])
             
-            status_color = "green" if leave['status'] == 'Approved' else "orange" if leave['status'] == 'Pending' else "red"
+            self.leave_tree.insert("", "end", values=(
+                serial_number,
+                emp_id,
+                emp_name,
+                leave['leave_type'],
+                department,
+                days,
+                leave['status']
+            ), tags=(str(leave['_id']),))
+            serial_number += 1
+        
+        # Update filter button colors
+        if hasattr(self, 'all_btn'):
+            self.all_btn.configure(fg_color="gray" if self.leave_filter_status != "All" else "#1f6aa5")
+            self.pending_btn.configure(fg_color="gray" if self.leave_filter_status != "Pending" else "#f59e0b")
+            self.approved_btn.configure(fg_color="gray" if self.leave_filter_status != "Approved" else "#10b981")
+            self.rejected_btn.configure(fg_color="gray" if self.leave_filter_status != "Rejected" else "#ef4444")
+    
+    def filter_leaves(self):
+        """Filter leaves based on search query"""
+        self.refresh_leaves()
+    
+    def calculate_leave_days(self, start_date, end_date):
+        """Calculate number of days between two dates"""
+        try:
+            from datetime import datetime
+            if isinstance(start_date, str):
+                start = datetime.strptime(start_date, "%Y-%m-%d")
+            else:
+                start = start_date
             
-            ctk.CTkLabel(
-                info_frame,
-                text=f"🏖️ {leave['leave_type']} - Employee ID: {leave['emp_id']}",
-                font=ctk.CTkFont(size=14, weight="bold")
-            ).pack(anchor="w")
+            if isinstance(end_date, str):
+                end = datetime.strptime(end_date, "%Y-%m-%d")
+            else:
+                end = end_date
             
-            ctk.CTkLabel(
-                info_frame,
-                text=f"📅 {leave['start_date']} to {leave['end_date']}",
-                font=ctk.CTkFont(size=12)
-            ).pack(anchor="w")
+            delta = end - start
+            return delta.days + 1  # +1 to include both start and end date
+        except Exception as e:
+            print(f"Error calculating days: {e}")
+            return 0
+    
+    def approve_selected_leave(self):
+        """Approve selected leave request"""
+        selection = self.leave_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a leave request to approve")
+            return
+        
+        item = self.leave_tree.item(selection[0])
+        leave_id_str = self.leave_tree.item(selection[0], 'tags')[0]
+        emp_name = item['values'][2]
+        status = item['values'][6]
+        
+        if status != "Pending":
+            messagebox.showinfo("Already Processed", f"This leave request has already been {status}")
+            return
+        
+        if messagebox.askyesno("Confirm Approval", f"Approve leave request for {emp_name}?"):
+            # Convert string ID back to ObjectId
+            from bson import ObjectId
+            leave_id = ObjectId(leave_id_str)
             
-            ctk.CTkLabel(
-                info_frame,
-                text=f"Status: {leave['status']}",
-                font=ctk.CTkFont(size=12),
-                text_color=status_color
-            ).pack(anchor="w")
+            if self.db_service.approve_leave(leave_id, self.user['username']):
+                messagebox.showinfo("Success", "Leave approved successfully")
+                self.refresh_leaves()
+            else:
+                messagebox.showerror("Error", "Failed to approve leave")
+    
+    def reject_selected_leave(self):
+        """Reject selected leave request"""
+        selection = self.leave_tree.selection()
+        if not selection:
+            messagebox.showwarning("No Selection", "Please select a leave request to reject")
+            return
+        
+        item = self.leave_tree.item(selection[0])
+        leave_id_str = self.leave_tree.item(selection[0], 'tags')[0]
+        emp_name = item['values'][2]
+        status = item['values'][6]
+        
+        if status != "Pending":
+            messagebox.showinfo("Already Processed", f"This leave request has already been {status}")
+            return
+        
+        if messagebox.askyesno("Confirm Rejection", f"Reject leave request for {emp_name}?"):
+            # Convert string ID back to ObjectId
+            from bson import ObjectId
+            leave_id = ObjectId(leave_id_str)
             
-            ctk.CTkLabel(
-                info_frame,
-                text=f"Reason: {leave['reason']}",
-                font=ctk.CTkFont(size=11),
-                text_color="lightgray"
-            ).pack(anchor="w", pady=(5, 0))
-            
-            # Admin buttons
-            if self.user['role'] == 'admin' and leave['status'] == 'Pending':
-                btn_frame = ctk.CTkFrame(leave_card)
-                btn_frame.pack(side="right", padx=15, pady=15)
-                
-                approve_btn = ctk.CTkButton(
-                    btn_frame,
-                    text="✅ Approve",
-                    command=lambda l=leave: self.approve_leave(l['_id']),
-                    width=80,
-                    height=30,
-                    fg_color="green"
-                )
-                approve_btn.pack(pady=2)
+            if self.db_service.reject_leave(leave_id, self.user['username']):
+                messagebox.showinfo("Success", "Leave rejected successfully")
+                self.refresh_leaves()
+            else:
+                messagebox.showerror("Error", "Failed to reject leave")
     
     def show_apply_leave_dialog(self):
         if not self.user.get('emp_id'):

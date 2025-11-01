@@ -254,7 +254,7 @@ class DatabaseService:
             return []
     
     def approve_leave(self, leave_id, approved_by):
-        """Approve/reject leave"""
+        """Approve leave"""
         try:
             # Find leave in all databases
             for db in self.db_manager.get_all_databases():
@@ -271,6 +271,26 @@ class DatabaseService:
             return False
         except Exception as e:
             print(f"Error approving leave: {e}")
+            return False
+    
+    def reject_leave(self, leave_id, rejected_by):
+        """Reject leave"""
+        try:
+            # Find leave in all databases
+            for db in self.db_manager.get_all_databases():
+                result = db[DatabaseConfig.LEAVES_COLLECTION].update_one(
+                    {"_id": leave_id},
+                    {"$set": {
+                        "status": "Rejected",
+                        "rejected_by": rejected_by,
+                        "rejected_date": datetime.now()
+                    }}
+                )
+                if result.modified_count > 0:
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error rejecting leave: {e}")
             return False
     
     # Salary Management (Derived Horizontal Fragmentation)
