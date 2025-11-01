@@ -1651,39 +1651,23 @@ class MainWindow:
         self.history_emp_combo.set("All Employees")
     
     def show_history_date_picker(self, date_type):
-        """Show calendar picker for From or To date"""
-        try:
-            from tkcalendar import Calendar
-            from datetime import datetime
-        except ImportError:
-            messagebox.showerror("Error", "tkcalendar module not installed.\n\nPlease install it using:\npip install tkcalendar")
-            return
+        """Show a simple date picker dialog for From or To date"""
+        from datetime import datetime
         
-        # Create calendar dialog
+        # Create date picker dialog
         dialog = ctk.CTkToplevel(self.root)
         dialog.title(f"Select {'From' if date_type == 'from' else 'To'} Date")
-        dialog.geometry("350x420")
+        dialog.geometry("300x350")
         dialog.transient(self.root)
         dialog.grab_set()
         
         # Center dialog
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (350 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (420 // 2)
-        dialog.geometry(f"350x420+{x}+{y}")
+        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (350 // 2)
+        dialog.geometry(f"300x350+{x}+{y}")
         
-        # Title
-        ctk.CTkLabel(
-            dialog,
-            text=f"📅 Select {'From' if date_type == 'from' else 'To'} Date",
-            font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(pady=15)
-        
-        # Calendar widget frame
-        cal_frame = tk.Frame(dialog, bg="#2b2b2b")
-        cal_frame.pack(pady=10, padx=20)
-        
-        # Get current date or existing date from entry
+        # Current date or existing date from entry
         current_date = datetime.now()
         if date_type == "from" and self.history_from_date.get():
             try:
@@ -1696,69 +1680,72 @@ class MainWindow:
             except:
                 pass
         
-        # Create calendar with proper styling
-        cal = Calendar(
-            cal_frame,
-            selectmode='day',
-            year=current_date.year,
-            month=current_date.month,
-            day=current_date.day,
-            date_pattern='yyyy-mm-dd',  # Set output format
-            background='darkblue',
-            foreground='white',
-            borderwidth=2,
-            headersbackground='blue',
-            headersforeground='white',
-            selectbackground='green',
-            selectforeground='white',
-            normalbackground='white',
-            normalforeground='black',
-            weekendbackground='lightgray',
-            weekendforeground='black',
-            othermonthbackground='lightgray',
-            othermonthforeground='gray',
-            font=('Arial', 10)
-        )
-        cal.pack(padx=10, pady=10)
+        # Title
+        ctk.CTkLabel(
+            dialog,
+            text=f"Select {'From' if date_type == 'from' else 'To'} Date",
+            font=ctk.CTkFont(size=16, weight="bold")
+        ).pack(pady=10)
+        
+        # Year selection
+        year_frame = ctk.CTkFrame(dialog)
+        year_frame.pack(pady=5, padx=20, fill="x")
+        
+        ctk.CTkLabel(year_frame, text="Year:", width=50).pack(side="left")
+        year_var = ctk.IntVar(value=current_date.year)
+        year_entry = ctk.CTkEntry(year_frame, textvariable=year_var, width=100)
+        year_entry.pack(side="left", padx=10)
+        
+        # Month selection
+        month_frame = ctk.CTkFrame(dialog)
+        month_frame.pack(pady=5, padx=20, fill="x")
+        
+        ctk.CTkLabel(month_frame, text="Month:", width=50).pack(side="left")
+        months = ["January", "February", "March", "April", "May", "June",
+                 "July", "August", "September", "October", "November", "December"]
+        month_combo = ctk.CTkComboBox(month_frame, values=months, width=150)
+        month_combo.set(months[current_date.month - 1])
+        month_combo.pack(side="left", padx=10)
+        
+        # Day selection
+        day_frame = ctk.CTkFrame(dialog)
+        day_frame.pack(pady=5, padx=20, fill="x")
+        
+        ctk.CTkLabel(day_frame, text="Day:", width=50).pack(side="left")
+        day_var = ctk.IntVar(value=current_date.day)
+        day_entry = ctk.CTkEntry(day_frame, textvariable=day_var, width=100)
+        day_entry.pack(side="left", padx=10)
         
         # Buttons
         btn_frame = ctk.CTkFrame(dialog)
-        btn_frame.pack(pady=15, padx=20, fill="x")
+        btn_frame.pack(pady=20, padx=20, fill="x")
         
-        def select_date():
+        def set_date():
             try:
-                # Get selected date - it should be in yyyy-mm-dd format
-                selected_date = cal.get_date()
+                year = year_var.get()
+                month = months.index(month_combo.get()) + 1
+                day = day_var.get()
                 
-                # If not in correct format, try to parse and convert
-                if '/' in selected_date:
-                    # Try multiple date formats
-                    for fmt in ['%m/%d/%y', '%m/%d/%Y', '%d/%m/%y', '%d/%m/%Y']:
-                        try:
-                            date_obj = datetime.strptime(selected_date, fmt)
-                            selected_date = date_obj.strftime('%Y-%m-%d')
-                            break
-                        except:
-                            continue
+                # Validate date
+                selected_date = datetime(year, month, day)
+                date_str = selected_date.strftime("%Y-%m-%d")
                 
                 # Set the date in the appropriate entry field
                 if date_type == "from":
                     self.history_from_date.delete(0, 'end')
-                    self.history_from_date.insert(0, selected_date)
+                    self.history_from_date.insert(0, date_str)
                 else:
                     self.history_to_date.delete(0, 'end')
-                    self.history_to_date.insert(0, selected_date)
+                    self.history_to_date.insert(0, date_str)
                 
                 dialog.destroy()
-            except Exception as e:
-                print(f"Date selection error: {e}")
-                messagebox.showerror("Error", f"Failed to set date: {e}\n\nPlease enter date manually in YYYY-MM-DD format.")
-                dialog.destroy()
+            except ValueError:
+                messagebox.showerror("Invalid Date", "Please enter a valid date.")
         
         ctk.CTkButton(
             btn_frame,
-            text="✓ Select Date",
-            command=select_date,
+            text="✓ Select",
+            command=set_date,
             height=40,
             fg_color="green",
             hover_color="darkgreen"
@@ -1766,7 +1753,7 @@ class MainWindow:
         
         ctk.CTkButton(
             btn_frame,
-            text="✕ Cancel",
+            text="Cancel",
             command=dialog.destroy,
             height=40,
             fg_color="gray",
